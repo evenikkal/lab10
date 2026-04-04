@@ -12,23 +12,23 @@
 **Инструмент:** Claude (claude.ai)
 
 **Промпт:**
-«Создай REST API на Go с использованием Gin для управления коллекцией книг. Нужны эндпоинты: GET /health (проверка состояния), GET /books (список), GET /books/:id (по ID), POST /books (создание). Модель Book: ID, Title, Author, Year. Хранение в памяти. Раздели код на слои: model, repository, handler.»
+«Создай REST API на Go с использованием фреймворка Gin для управления коллекцией книг. Структура Book: ID (int), Title (string), Author (string), Year (int). Нужно 3 эндпоинта: GET /health (статус сервера), GET /books (список всех книг), POST /books (создать книгу). Данные хранить in-memory с потокобезопасным доступом через sync.RWMutex. Архитектура — слоистая: cmd/server/main.go, internal/model, internal/repository, internal/handler.»
 
-**Результат:** Получила структурированный проект с разделением на пакеты internal/model, internal/repository, internal/handler. Репозиторий с потокобезопасным доступом через sync.RWMutex.
+**Результат:** Получила рабочую реализацию с тремя эндпоинтами, слоистой архитектурой и `BookRepository` с `sync.RWMutex`. Репозиторий инициализируется с двумя тестовыми книгами.
 
 ### Промпт 2
 
 **Промпт:**
-«Добавь обработку ошибок: невалидный ID (не число) — 400, книга не найдена — 404. Вынеси точку входа в cmd/server/main.go.»
+«Добавь эндпоинт GET /books/:id, который возвращает книгу по ID, 404 если не найдена и 400 если ID не число. Также вынеси ошибку "book not found" в отдельную переменную ErrNotFound в репозитории, чтобы handler мог проверять через errors.Is.»
 
-**Результат:** Добавлены проверки в handler, main.go перенесён в cmd/server/.
+**Результат:** Добавлен `FindByID` в репозиторий с `ErrNotFound`, handler обрабатывает 400/404/500. Итого 4 эндпоинта: /health, /books, /books/:id, /books (POST).
 
 ### Промпт 3
 
 **Промпт:**
-«Напиши юнит-тесты для всех эндпоинтов используя httptest. Покрой случаи: получение списка (200), получение книги по ID (200), книга не найдена (404), невалидный ID (400), создание книги (201).»
+«Напиши юнит-тесты для всех эндпоинтов книг используя httptest и gin.TestMode. Покрой случаи: получение списка (статус и наличие данных), получение книги по валидному ID, по несуществующему ID, по невалидному ID (строка), создание книги с проверкой статуса 201 и присвоенного ID.»
 
-**Результат:** 6 тестов, все зелёные (`go test ./...`).
+**Результат:** 6 тестов, все зелёные (`go test ./... -v`).
 
 ### Итого
 
@@ -45,14 +45,14 @@
 **Инструмент:** Claude (claude.ai)
 
 **Промпт:**
-«Реализуй валидацию входных данных в Gin. Нужно два эндпоинта POST /users и POST /products. User: name (required, min=2, max=50), email (required, валидный email), age (required, min=18, max=100). Product: title (required, min=3), price (required, >0), quantity (required, >=0), category (required, oneof=electronics food clothing other).»
+«Реализуй валидацию входных данных в Gin. Нужно два эндпоинта POST /users и POST /products. User: name (required, min=2, max=50), email (required, валидный email), age (required, min=18, max=100). Product: title (required, min=3, max=100), price (required, >0), quantity (required, >=0), category (required, oneof=electronics food clothing other). Вынеси роутер в функцию SetupRouter() для тестирования. Порт :8081.»
 
-**Результат:** Оба обработчика с binding-тегами и понятными сообщениями об ошибках.
+**Результат:** Оба обработчика с binding-тегами и понятными JSON-сообщениями об ошибках с полями `error` и `details`.
 
 ### Промпт 2
 
 **Промпт:**
-«Напиши тесты: валидный юзер, юзер без имени, имя слишком короткое, невалидный email, возраст меньше 18, валидный продукт, неверная категория, нулевая цена.»
+«Напиши тесты с testify/assert: валидный юзер, юзер без имени, имя слишком короткое, невалидный email, возраст меньше 18, валидный продукт, неверная категория, нулевая цена. Вынеси вспомогательную функцию doPost.»
 
 **Результат:** 8 тестов — все зелёные.
 
@@ -71,36 +71,36 @@
 **Инструмент:** Claude (claude.ai)
 
 **Промпт:**
-«Создай Go-сервис на Gin, который работает с вложенным JSON. Структура Order содержит: CustomerID, список OrderItem (ProductID, ProductName, Quantity, UnitPrice), вложенный Address (Street, City, Country, Zip), вычисляемый TotalAmount, Status и CreatedAt. Эндпоинты: POST /orders (создать, автоматически вычислить сумму), GET /orders/:id, GET /orders.»
+«Создай Go-сервис на Gin, который работает с вложенным JSON. Структура Order содержит: CustomerID, список OrderItem (ProductID, ProductName, Quantity, UnitPrice), вложенный Address (Street, City, Country, Zip), вычисляемый TotalAmount, Status и CreatedAt. Эндпоинты: POST /orders (создать, автоматически вычислить сумму), GET /orders/:id, GET /orders. Используй binding-теги для валидации вложенных структур (dive). Порт :8082.»
 
-**Результат:** Полноценный сервис с вложенными структурами и автовычислением суммы.
+**Результат:** Полноценный сервис с вложенными структурами, `dive`-валидацией и автовычислением суммы заказа.
 
 ### Промпт 2
 
 **Промпт:**
-«Напиши Python-клиент с dataclass'ами Order, OrderItem, Address и функциями create_order, get_order, list_orders. Клиент должен правильно сериализовывать вложенные структуры в JSON.»
+«Напиши Python-клиент с dataclass'ами Order, OrderItem, Address и функциями create_order, get_order, list_orders. Клиент должен правильно сериализовывать вложенные структуры через dataclasses.asdict. Также добавь pretty-print для заказов.»
 
-**Результат:** Чистый Python-клиент с датаклассами.
+**Результат:** Чистый Python-клиент с датаклассами и корректной сериализацией.
 
 ### Промпт 3
 
 **Промпт:**
-«Добавь юнит-тесты для Python-клиента, мокируя HTTP-запросы через unittest.mock. Покрой: успешное создание, проверку payload, обработку HTTP-ошибок, получение заказа, 404, список.»
+«Добавь юнит-тесты для Python-клиента, мокируя HTTP-запросы через unittest.mock. Покрой: успешное создание, проверку payload через call_args.kwargs, обработку HTTP-ошибок, получение заказа, 404, список заказов (непустой и пустой). И отдельно тесты для Go-сервиса с testify: создание заказа, вычисление суммы, отсутствие items, отсутствие адреса, получение, 404, список.»
 
-**Результат:** 7 тестов Python + 7 тестов Go, все зелёные.
+**Результат:** 7 тестов Go + 7 тестов Python (test_client.py), все зелёные.
 
 ### Промпт 4
 
 **Промпт:**
-«Добавь FastAPI-сервис (app.py), который работает как gateway: принимает заказы, валидирует через Pydantic-модели (аналог binding-тегов Gin), и проксирует запросы в Go-сервис. Эндпоинты: POST /orders, GET /orders/{id}, GET /orders, GET /health. Обработай случай, когда Go-сервис недоступен (502). Напиши тесты с TestClient и замоканным Go-сервисом.»
+«Создай FastAPI-сервис (app.py) как gateway к Go-сервису, чтобы показать сравнение FastAPI vs Gin из темы лабораторной. FastAPI должен: валидировать запросы через Pydantic-модели (зеркало Go-структур с Field-валидацией), проксировать запросы к Go-сервису, обрабатывать ConnectionError (502), проксировать GET /orders/:id и GET /orders. Добавь эндпоинт /health. Также напиши тесты test_app.py с TestClient, мокируя вызовы к Go-сервису: health, успешное создание, Pydantic-валидация (missing items, bad customer_id, negative price, empty address), Go unavailable, get order (200/404), list orders.»
 
-**Результат:** FastAPI gateway с Pydantic-валидацией + 10 тестов (проверка валидации, проксирование, обработка ошибок 502/404).
+**Результат:** Полноценный FastAPI gateway с Pydantic-валидацией + 10 тестов в test_app.py. Все зелёные.
 
 ### Итого
 
 - Количество промптов: 4
 - Что пришлось исправлять вручную: поменяла `call_kwargs[1]` на `call_kwargs.kwargs` при проверке вызова mock в test_client.py
-- Время: ~40 мин
+- Время: ~35 мин
 
 ---
 
@@ -111,9 +111,9 @@
 **Инструмент:** Claude (claude.ai)
 
 **Промпт:**
-«Создай gRPC-сервис. Определи proto-файл hello.proto с сообщениями HelloRequest (string name) и HelloReply (string message), сервисом Greeter и методом SayHello. Напиши Go-сервер на порту 50051, который отвечает "Hello, {name}!" или "Hello, stranger!" если имя пустое.»
+«Создай gRPC-сервис. Определи proto-файл hello.proto с пакетом hello, опцией go_package="./pb", сообщениями HelloRequest (string name) и HelloReply (string message), сервисом Greeter и методом SayHello. Напиши Go-сервер на порту 50051, который отвечает "Hello, {name}!" или "Hello, stranger!" если имя пустое. Вынеси конструктор в NewGreeterServer().»
 
-**Результат:** proto-файл, pb-файлы (hello.pb.go, hello_grpc.pb.go), сервер Go.
+**Результат:** proto-файл, сгенерированные pb-файлы (hello.pb.go, hello_grpc.pb.go), Go-сервер с `greeterServer`, `UnimplementedGreeterServer`.
 
 ### Промпт 2
 
@@ -125,9 +125,9 @@
 ### Промпт 3
 
 **Промпт:**
-«Напиши тесты для Go gRPC-сервера используя bufconn (in-process listener), чтобы не нужен был реальный порт. И Python-клиент с тестами, где gRPC-вызовы замоканы через unittest.mock.»
+«Напиши тесты для Go gRPC-сервера используя bufconn (in-process listener через google.golang.org/grpc/test/bufconn), чтобы не нужен был реальный порт. Покрой: SayHello с именем, с пустым именем, несколько запросов подряд, и отдельный юнит-тест вызова SayHello напрямую без gRPC транспорта. Python-клиент (client.py) с поддержкой аргумента адреса и обработкой RpcError. Python-тесты: сериализация/десериализация HelloRequest и HelloReply, пустые сообщения, unicode (кириллица), независимость экземпляров. Мок-тесты клиента: вызов SayHello, отправка имени "Evgenia", обработка RpcError. Добавь skipUnless(GRPC_AVAILABLE) чтобы тесты работали без установленного grpcio.»
 
-**Результат:** Тесты Go с bufconn (4 теста), тесты Python с mock (6 pb2-тестов + 3 client-теста).
+**Результат:** 4 теста Go (bufconn) + 9 тестов Python (6 pb2 + 3 client), все зелёные.
 
 ### Итого
 
@@ -144,28 +144,28 @@
 **Инструмент:** Claude (claude.ai)
 
 **Промпт:**
-«Реализуй JWT-аутентификацию в Gin. POST /login принимает username+password, возвращает подписанный HS256 JWT. GET /protected и GET /profile требуют Bearer-токен в заголовке Authorization. JWT содержит поле username и стандартные claim'ы (exp, iat, iss).»
+«Реализуй JWT-аутентификацию в Gin. POST /login принимает username+password (binding:"required"), возвращает подписанный HS256 JWT с помощью github.com/golang-jwt/jwt/v5. JWT содержит поле username и стандартные claims (exp=1 час, iat, iss="lab10-go-service"). GET /protected и GET /profile требуют Bearer-токен в заголовке Authorization. AuthMiddleware должен проверять метод подписи (SigningMethodHMAC) и валидность токена. Тестовые пользователи: alice/password123, bob/qwerty. Вынеси GenerateToken, ParseToken как отдельные функции. Вынеси роутер в SetupRouter(). Порт :8083.»
 
-**Результат:** Полная реализация с middleware `AuthMiddleware`, функциями `GenerateToken` и `ParseToken`.
+**Результат:** Полная реализация с middleware, группой защищённых роутов, /profile возвращает username+role+email.
 
 ### Промпт 2
 
 **Промпт:**
-«Напиши Python-клиент, который: логинится через POST /login, получает токен, независимо верифицирует его через PyJWT с тем же shared secret, вызывает /protected и /profile.»
+«Напиши Python-клиент, который: логинится через POST /login, получает токен, независимо верифицирует его через PyJWT с тем же shared secret (super-secret-lab10-key), вызывает /protected и /profile. Поддержка аргументов CLI для username/password.»
 
-**Результат:** client.py с функцией `verify_token_locally()` — Python сам проверяет подпись Go-токена.
+**Результат:** client.py с функциями login, call_protected, call_profile, verify_token_locally — Python сам проверяет подпись Go-токена.
 
 ### Промпт 3
 
 **Промпт:**
-«Напиши тесты: Go — генерация/парсинг токена, логин (успех/неверный пароль/неизвестный юзер/неполные поля), /protected (с токеном/без/с неверным), /profile. Python — PyJWT верификация (валидный/истёкший/чужой секрет/мусор), login mock, call_protected mock.»
+«Напиши тесты. Go: генерация+парсинг токена (username и issuer), парсинг мусорного токена, парсинг токена с чужим секретом, логин (успех/неверный пароль/неизвестный юзер/неполные поля), /protected (с токеном/без/с невалидным), /profile с валидным токеном. Python: PyJWT верификация (валидный/истёкший/чужой секрет/мусор/проверка username "bob"), login mock (успех/ошибка/проверка body), call_protected mock (успех/проверка Bearer-заголовка/ошибка без токена), call_profile mock.»
 
-**Результат:** 10 тестов Go + 12 тестов Python, все зелёные.
+**Результат:** 11 тестов Go + 12 тестов Python, все зелёные.
 
 ### Итого
 
 - Количество промптов: 3
-- Что пришлось исправлять вручную: убрала inline lambda в тестах Go, которую Claude написал для создания плохого токена
+- Что пришлось исправлять вручную: убрала inline lambda в тестах Go, которую Claude написал для создания плохого токена — заменила на строковый литерал
 - Время: ~35 мин
 
 ---
@@ -173,12 +173,12 @@
 ## Общий итог по лабораторной работе
 
 | Задание | Инструмент | Промптов | Время |
-|---------|-----------|----------|-------|
-| М1 — Gin API | Claude | 3 | ~20 мин |
+| --- | --- | --- | --- |
+| М1 — Gin API (книги) | Claude | 3 | ~20 мин |
 | М3 — Валидация | Claude | 2 | ~15 мин |
-| М5 — JSON exchange + FastAPI gateway | Claude | 4 | ~40 мин |
+| М5 — JSON exchange + FastAPI gateway | Claude | 4 | ~35 мин |
 | В1 — gRPC | Claude | 3 | ~45 мин |
 | В3 — JWT | Claude | 3 | ~35 мин |
-| **Итого** | | **15** | **~155 мин** |
+| **Итого** |  | **15** | **~150 мин** |
 
-**Главный вывод:** Claude хорошо генерирует шаблонный Gin/gRPC/FastAPI код, но иногда ошибается в деталях тестирования (порядок аргументов mock, inline функции в Go). Все ошибки были быстро исправлены итерацией промптов. Сравнение FastAPI и Gin показало, что валидация через Pydantic-модели и binding-теги Gin решают одну и ту же задачу, но Pydantic даёт более подробные сообщения об ошибках из коробки.
+**Главный вывод:** Claude хорошо генерирует шаблонный Gin/gRPC код и умеет создавать слоистую архитектуру (cmd/internal). Сравнение FastAPI и Gin показало, что Pydantic-валидация декларативнее binding-тегов Go, но Go-сервис быстрее стартует и не требует внешнего ASGI-сервера. Ошибки Claude: некорректная работа с mock call_args (Python), inline-функции в Go-тестах. Все ошибки были быстро исправлены итерацией промптов.
